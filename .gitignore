@@ -31,3 +31,16 @@ Thumbs.db
 
 # Misc
 *.orig
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+*.pem
+*.key
+
+# SSH Keys
+id_rsa
+id_rsa.pub
