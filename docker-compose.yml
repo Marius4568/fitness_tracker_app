@@ -24,6 +24,7 @@ services:
 
   # Backend API
   backend:
+    image: mariusurbonas100039/fitness-tracker-backend:latest
     build: ./fitness-tracker-backend
     container_name: fitness-tracker-backend
     environment:
@@ -44,6 +45,7 @@ services:
 
   # Frontend
   frontend:
+    image: mariusurbonas100039/fitness-tracker-frontend:latest
     build: ./fitness-tracker-frontend
     container_name: fitness-tracker-frontend
     ports:
