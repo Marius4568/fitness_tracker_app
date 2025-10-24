@@ -72,13 +72,14 @@ function App() {
   };
 
   const getTotalReps = () => {
+    if (!Array.isArray(exercises)) return 0;
     return exercises.reduce((total, ex) => total + ex.reps, 0);
   };
 
   return (
     <div className="app">
       <header>
-        <h1>💪 Exercises Tracker</h1>
+        <h1>💪 Exercise Tracker</h1>
         <p>Track your daily workouts</p>
       </header>
 

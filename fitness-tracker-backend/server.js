@@ -10,6 +10,31 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+const winston = require('winston');
+
+// Configure logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
+  ]
+});
+
+// Log incoming requests
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.path}`);
+  next();
+});
+
 // PostgreSQL connection pool
 const pool = new Pool({
   host: process.env.DB_HOST || 'db',
@@ -22,15 +47,32 @@ const pool = new Pool({
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
-    console.error('❌ Database connection error:', err);
+    logger.error('❌ Database connection error:', err);
   } else {
-    console.log('✅ Database connected successfully at:', res.rows[0].now);
+    logger.info('✅ Database connected successfully at:', res.rows[0].now);
   }
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check endpoint - Tests database connectivity
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connection
+    const result = await pool.query('SELECT NOW()');
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      dbTime: result.rows[0].now
+    });
+  } catch (err) {
+    logger.error('Health check failed:', err);
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: err.message
+    });
+  }
 });
 
 // Get all exercises
@@ -41,7 +83,7 @@ app.get('/api/exercises', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error('Error fetching exercises:', err);
+    logger.error('Error fetching exercises:', err);
     res.status(500).json({ error: 'Failed to fetch exercises' });
   }
 });
@@ -61,7 +103,7 @@ app.post('/api/exercises', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('Error adding exercise:', err);
+    logger.error('Error adding exercise:', err);
     res.status(500).json({ error: 'Failed to add exercise' });
   }
 });
@@ -82,7 +124,7 @@ app.delete('/api/exercises/:id', async (req, res) => {
 
     res.json({ message: 'Exercise deleted', exercise: result.rows[0] });
   } catch (err) {
-    console.error('Error deleting exercise:', err);
+    logger.error('Error deleting exercise:', err);
     res.status(500).json({ error: 'Failed to delete exercise' });
   }
 });
@@ -99,11 +141,11 @@ app.get('/api/stats', async (req, res) => {
     `);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Error fetching stats:', err);
+    logger.error('Error fetching stats:', err);
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  logger.info(`🚀 Server running on port ${PORT}`);
 });

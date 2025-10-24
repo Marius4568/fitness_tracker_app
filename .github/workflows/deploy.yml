@@ -56,8 +56,8 @@ jobs:
             # Pull latest Docker images
             docker-compose pull
             
-            # Restart containers with new images
-            docker-compose up -d --force-recreate
+            # Restart only app containers, not database
+            docker-compose up -d --no-deps --build backend frontend
             
             # Show running containers
             docker ps
