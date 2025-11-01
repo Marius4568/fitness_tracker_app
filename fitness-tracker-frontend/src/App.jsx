@@ -6,7 +6,6 @@ function App() {
   const [exerciseName, setExerciseName] = useState('');
   const [reps, setReps] = useState('');
 
-  // Load exercises from API on mount
   useEffect(() => {
     fetchExercises();
   }, []);

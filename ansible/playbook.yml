@@ -1,6 +1,4 @@
 ---
-# Ansible Playbook to configure EC2 instance for Fitness Tracker application
-# This playbook installs Docker, clones the repository, and deploys the application
 
 - name: Configure Fitness Tracker Server
   hosts: fitness_tracker
