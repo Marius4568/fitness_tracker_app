@@ -78,7 +78,7 @@ function App() {
   return (
     <div className="app">
       <header>
-        <h1>💪 Exercise Tracker</h1>
+        <h1>💪 Exercise Tracker 💪</h1>
         <p>Track your daily workouts</p>
       </header>
 
