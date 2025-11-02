@@ -105,7 +105,7 @@ function AppContent() {
       <header>
         <div className="header-content">
           <div>
-            <h1>💪 Exercise Tracker 💪</h1>
+            <h1>💪 Exercise Tracker</h1>
             <p>Welcome, {user.username}!</p>
           </div>
           <button onClick={logout} className="btn-logout">
