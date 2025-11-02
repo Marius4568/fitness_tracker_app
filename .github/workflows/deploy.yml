@@ -41,70 +41,57 @@ jobs:
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST bash << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST "bash -s" << 'ENDSSH'
             set -e
             cd /home/ubuntu/fitness-tracker
             
-            # Create .env file with secrets
-            cat > .env << 'ENVFILE'
+            echo "🔄 Updating code..."
+            git reset --hard HEAD
+            git pull origin master
+            
+            echo "📦 Pulling Docker images..."
+            docker-compose pull
+            
+            echo "🗄️ Starting database..."
+            docker-compose up -d db
+            
+            echo "⏳ Waiting for database to be ready..."
+            sleep 10
+            
+            echo "🔄 Running database migrations..."
+            docker-compose run --rm flyway migrate
+            
+            echo "📋 Migration status:"
+            docker-compose run --rm flyway info
+            
+            echo "🚀 Updating application services..."
+            docker-compose stop backend frontend
+            docker-compose rm -f backend frontend
+            docker-compose up -d backend frontend
+            
+            echo "⏳ Waiting for services to start..."
+            sleep 5
+            
+            echo "📊 Running containers:"
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            
+            echo "🔍 Testing backend health..."
+            curl -f http://localhost:5000/health || echo "⚠️ Backend health check failed"
+            
+            echo "✅ Deployment completed successfully!"
+          ENDSSH
+          
+          # Create .env file separately with variables
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST << ENVEOF
+            cat > /home/ubuntu/fitness-tracker/.env << 'INNERENV'
           POSTGRES_USER=postgres
           POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
           POSTGRES_DB=fitness_tracker
           DB_HOST=db
           DB_PORT=5432
           JWT_SECRET=${{ secrets.JWT_SECRET }}
-          ENVFILE
-            
-            # Reset any local changes and pull latest
-            echo "🔄 Updating code..."
-            git reset --hard HEAD
-            git pull origin master
-            
-            # Pull latest Docker images
-            echo "📦 Pulling Docker images..."
-            docker-compose pull
-            
-            # Ensure database is running
-            echo "🗄️ Starting database..."
-            docker-compose up -d db
-            
-            # Wait for database to be ready
-            echo "⏳ Waiting for database to be ready..."
-            sleep 10
-            
-            # Run database migrations
-            echo "🔄 Running database migrations..."
-            docker-compose run --rm flyway migrate
-            
-            if [ $? -eq 0 ]; then
-              echo "✅ Migrations completed successfully"
-            else
-              echo "❌ Migration failed!"
-              exit 1
-            fi
-            
-            # Show migration status
-            echo "📋 Migration status:"
-            docker-compose run --rm flyway info
-            
-            # IMPORTANT: Force recreate containers with new images
-            echo "🚀 Updating application services..."
-            docker-compose up -d --force-recreate --no-deps backend frontend
-            
-            # Wait for services to start
-            echo "⏳ Waiting for services to start..."
-            sleep 5
-            
-            # Display running containers
-            echo "📊 Running containers:"
-            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-            
-            # Verify backend is responding
-            echo "🔍 Testing backend health..."
-            curl -f http://localhost:5000/health || echo "⚠️ Backend health check failed"
-            
-            echo "✅ Deployment completed successfully!"
-          ENDSSH
+          INNERENV
+          ENVEOF
           
           rm -f private_key.pem
 
