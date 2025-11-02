@@ -45,6 +45,19 @@ resource "aws_security_group" "fitness_tracker_sg" {
     cidr_blocks = var.allowed_ssh_cidr
   }
 
+  ingress {
+  description = "SSH from GitHub Actions"
+  from_port   = 22
+  to_port     = 22
+  protocol    = "tcp"
+  cidr_blocks = [
+    "140.82.112.0/20",    
+    "143.55.64.0/20",     
+    "185.199.108.0/22",   
+    "192.30.252.0/22"     
+  ]
+}
+
   # Allow HTTP traffic so users can access the web application
   # Port 80 is the standard HTTP port
   ingress {
