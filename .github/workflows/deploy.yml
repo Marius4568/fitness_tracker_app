@@ -41,20 +41,18 @@ jobs:
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          # FIRST: Create .env file with secrets
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST bash << EOF
-            cat > /home/ubuntu/fitness-tracker/.env << 'INNERENV'
+          # Create .env file
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST "cat > /home/ubuntu/fitness-tracker/.env" << EOF
           POSTGRES_USER=postgres
           POSTGRES_PASSWORD=$DB_PASSWORD
           POSTGRES_DB=fitness_tracker
           DB_HOST=db
           DB_PORT=5432
           JWT_SECRET=$JWT_SECRET
-          INNERENV
           EOF
           
-          # THEN: Deploy application
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST bash << 'DEPLOY'
+          # Deploy application
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST 'bash -s' << 'ENDSSH'
             set -e
             cd /home/ubuntu/fitness-tracker
             
@@ -73,40 +71,35 @@ jobs:
             
             echo "🛑 Stopping application services..."
             docker-compose stop backend frontend
+            docker-compose rm -f backend frontend
             
-            echo "🗑️ Removing old images..."
-            docker rmi mariusurbonas100039/fitness-tracker-backend:latest || true
-            docker rmi mariusurbonas100039/fitness-tracker-frontend:latest || true
+            echo "🗑️ Removing ALL old images..."
+            docker system prune -af --filter "label!=keep"
             
             echo "📦 Pulling fresh images from Docker Hub..."
             docker-compose pull backend frontend
             
-            echo "🚀 Starting services with new images..."
-            docker-compose up -d --force-recreate backend frontend
+            echo "🚀 Starting services..."
+            docker-compose up -d backend frontend
             
             echo "⏳ Waiting for services..."
-            sleep 5
+            sleep 10
             
-            echo "📊 Running containers:"
+            echo "📊 Containers:"
             docker ps --format "table {{.Names}}\t{{.Status}}"
             
-            echo "🔍 Checking deployed version..."
-            docker exec fitness-tracker-frontend cat /usr/share/nginx/html/index.html | grep -o '<title>.*</title>' || echo "Could not verify frontend"
+            echo "🔍 Frontend content:"
+            docker exec fitness-tracker-frontend cat /usr/share/nginx/html/index.html | head -20
             
-            echo "🔍 Health check:"
-            curl -s http://localhost:5000/health | head -1 || echo "Backend starting..."
-            
-            echo "✅ Deployment complete!"
-          DEPLOY
+            echo "✅ Done!"
+          ENDSSH
           
           rm -f private_key.pem
 
       - name: Verify deployment
         run: |
           echo "=========================================="
-          echo "🎉 Deployment completed successfully!"
+          echo "🎉 Deployment completed!"
           echo "=========================================="
           echo "Application URL: https://${{ secrets.EC2_HOST }}"
-          echo "✅ Database migrations applied"
-          echo "✅ Services updated with latest images"
           echo "=========================================="
