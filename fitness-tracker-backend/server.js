@@ -1,7 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
-require('dotenv').config();
+const path = require('path');
+
+const envPath = path.resolve(__dirname, '../.env');
+
+
+require('dotenv').config({ path: envPath });
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;

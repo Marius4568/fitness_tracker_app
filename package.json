@@ -1,0 +1,19 @@
+{
+  "name": "fitness-tracker-root",
+  "version": "1.0.0",
+  "description": "Fitness Tracker - Root development scripts",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --prefix \"[{name}]\" --names \"DB,BACKEND,FRONTEND\" -c \"blue,green,yellow\" \"npm run dev:db\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:db": "docker-compose -f docker-compose.dev.yml up db",
+    "dev:backend": "npm run dev --prefix fitness-tracker-backend",
+    "dev:frontend": "npm run dev --prefix fitness-tracker-frontend",
+    "install:all": "npm install && npm install --prefix fitness-tracker-backend && npm install --prefix fitness-tracker-frontend",
+    "clean": "docker-compose -f docker-compose.dev.yml down -v"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": ["fitness", "tracker", "devops"],
+  "author": "",
+  "license": "ISC"
+}
