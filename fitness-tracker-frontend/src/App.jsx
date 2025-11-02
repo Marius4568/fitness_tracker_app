@@ -1,18 +1,27 @@
 import { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Auth from './components/Auth';
 import './App.css';
 
-function App() {
+function AppContent() {
+  const { user, token, logout, loading } = useAuth();
   const [exercises, setExercises] = useState([]);
   const [exerciseName, setExerciseName] = useState('');
   const [reps, setReps] = useState('');
 
   useEffect(() => {
-    fetchExercises();
-  }, []);
+    if (user && token) {
+      fetchExercises();
+    }
+  }, [user, token]);
 
   const fetchExercises = async () => {
     try {
-      const response = await fetch('/api/exercises');
+      const response = await fetch('/api/exercises', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await response.json();
       setExercises(data);
     } catch (error) {
@@ -33,6 +42,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           name: exerciseName.trim(),
@@ -43,7 +53,7 @@ function App() {
       if (response.ok) {
         setExerciseName('');
         setReps('');
-        fetchExercises(); // Reload exercises from API
+        fetchExercises();
       } else {
         alert('Failed to add exercise');
       }
@@ -57,10 +67,13 @@ function App() {
     try {
       const response = await fetch(`/api/exercises/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (response.ok) {
-        fetchExercises(); // Reload exercises from API
+        fetchExercises();
       } else {
         alert('Failed to delete exercise');
       }
@@ -75,11 +88,30 @@ function App() {
     return exercises.reduce((total, ex) => total + ex.reps, 0);
   };
 
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <h2>Loading...</h2>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Auth />;
+  }
+
   return (
     <div className="app">
       <header>
-        <h1>💪 Exercise Tracker</h1>
-        <p>Track your daily workouts</p>
+        <div className="header-content">
+          <div>
+            <h1>💪 Exercise Tracker</h1>
+            <p>Welcome, {user.username}!</p>
+          </div>
+          <button onClick={logout} className="btn-logout">
+            Logout
+          </button>
+        </div>
       </header>
 
       <div className="container">
@@ -146,6 +178,14 @@ function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

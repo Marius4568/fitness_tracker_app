@@ -1,13 +1,14 @@
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const path = require('path');
+const winston = require('winston');
+const { authenticateToken, JWT_SECRET } = require('./middleware/auth');
 
 const envPath = path.resolve(__dirname, '../.env');
-
-
 require('dotenv').config({ path: envPath });
-
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,8 +16,6 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-const winston = require('winston');
 
 // Configure logger
 const logger = winston.createLogger({
@@ -59,38 +58,167 @@ pool.query('SELECT NOW()', (err, res) => {
   }
 });
 
-// Health check endpoint - Tests database connectivity
+// Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    const dbResult = await pool.query('SELECT NOW()');
-
-    // Check Flyway migration status
-    const migrationResult = await pool.query(
-      'SELECT version, description, installed_on FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 1'
-    );
-
+    const result = await pool.query('SELECT NOW()');
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       database: 'connected',
-      dbTime: dbResult.rows[0].now,
-      latestMigration: migrationResult.rows[0] || null
+      dbTime: result.rows[0].now
     });
   } catch (err) {
     logger.error('Health check failed:', err);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
+      database: 'disconnected',
       error: err.message
     });
   }
 });
 
-// Get all exercises
-app.get('/api/exercises', async (req, res) => {
+// ============================================
+// AUTH ROUTES
+// ============================================
+
+// Register new user
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password, username } = req.body;
+
+  if (!email || !password || !username) {
+    return res.status(400).json({ error: 'Email, password, and username are required' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    // Check if user already exists
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    // Hash password
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    // Insert user
+    const result = await pool.query(
+      'INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3) RETURNING id, email, username, created_at',
+      [email, username, password_hash]
+    );
+
+    const user = result.rows[0];
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username
+      }
+    });
+  } catch (err) {
+    logger.error('Error registering user:', err);
+    res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
+// Login user
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    // Get user from database
+    const result = await pool.query(
+      'SELECT id, email, username, password_hash FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const user = result.rows[0];
+
+    // Check password
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username
+      }
+    });
+  } catch (err) {
+    logger.error('Error logging in:', err);
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+// Get current user (protected route)
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM exercises ORDER BY created_at DESC'
+      'SELECT id, email, username, created_at FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    logger.error('Error fetching user:', err);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+// ============================================
+// EXERCISE ROUTES (Now Protected)
+// ============================================
+
+// Get all exercises for logged-in user
+app.get('/api/exercises', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM exercises WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.user.userId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -100,7 +228,7 @@ app.get('/api/exercises', async (req, res) => {
 });
 
 // Add new exercise
-app.post('/api/exercises', async (req, res) => {
+app.post('/api/exercises', authenticateToken, async (req, res) => {
   const { name, reps } = req.body;
 
   if (!name || !reps) {
@@ -109,8 +237,8 @@ app.post('/api/exercises', async (req, res) => {
 
   try {
     const result = await pool.query(
-      'INSERT INTO exercises (name, reps) VALUES ($1, $2) RETURNING *',
-      [name, reps]
+      'INSERT INTO exercises (name, reps, user_id) VALUES ($1, $2, $3) RETURNING *',
+      [name, reps, req.user.userId]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -120,17 +248,17 @@ app.post('/api/exercises', async (req, res) => {
 });
 
 // Delete exercise
-app.delete('/api/exercises/:id', async (req, res) => {
+app.delete('/api/exercises/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
     const result = await pool.query(
-      'DELETE FROM exercises WHERE id = $1 RETURNING *',
-      [id]
+      'DELETE FROM exercises WHERE id = $1 AND user_id = $2 RETURNING *',
+      [id, req.user.userId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Exercise not found' });
+      return res.status(404).json({ error: 'Exercise not found or unauthorized' });
     }
 
     res.json({ message: 'Exercise deleted', exercise: result.rows[0] });
@@ -141,7 +269,7 @@ app.delete('/api/exercises/:id', async (req, res) => {
 });
 
 // Get exercise statistics
-app.get('/api/stats', async (req, res) => {
+app.get('/api/stats', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
@@ -149,7 +277,8 @@ app.get('/api/stats', async (req, res) => {
         SUM(reps) as total_reps,
         AVG(reps) as avg_reps
       FROM exercises
-    `);
+      WHERE user_id = $1
+    `, [req.user.userId]);
     res.json(result.rows[0]);
   } catch (err) {
     logger.error('Error fetching stats:', err);

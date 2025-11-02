@@ -20,7 +20,6 @@ services:
     networks:
       - fitness-network
 
-  # Add Flyway service
   flyway:
     image: flyway/flyway:10-alpine
     container_name: fitness-tracker-flyway
@@ -38,7 +37,6 @@ services:
     networks:
       - fitness-network
 
-  # Backend API
   backend:
     image: mariusurbonas100039/fitness-tracker-backend:latest
     build: ./fitness-tracker-backend
@@ -49,7 +47,8 @@ services:
       DB_PORT: 5432
       DB_NAME: fitness_tracker
       DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key}  # ADD THIS LINE
     ports:
       - "5000:5000"
     depends_on:
@@ -61,7 +60,6 @@ services:
       - fitness-network
     restart: unless-stopped
 
-  # Frontend
   frontend:
     image: mariusurbonas100039/fitness-tracker-frontend:latest
     build: ./fitness-tracker-frontend

@@ -1,8 +1,6 @@
 version: '3.8'
 
 services:
-  # Only run database in Docker for local development
-  # Backend and frontend run directly with npm for hot reload
   db:
     image: postgres:15-alpine
     container_name: fitness-tracker-db-dev
@@ -20,7 +18,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Add Flyway service for migrations
   flyway:
     image: flyway/flyway:10-alpine
     container_name: fitness-tracker-flyway-dev

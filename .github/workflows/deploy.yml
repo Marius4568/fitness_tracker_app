@@ -36,6 +36,7 @@ jobs:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }} 
         run: |
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
@@ -49,15 +50,20 @@ jobs:
           POSTGRES_DB=fitness_tracker
           DB_HOST=db
           DB_PORT=5432
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
           ENVFILE
             
-            # Pull latest code
+            # Reset any local changes and pull latest
+            echo "🔄 Updating code..."
+            git reset --hard HEAD
             git pull origin master
             
             # Pull latest Docker images
+            echo "📦 Pulling Docker images..."
             docker-compose pull
             
             # Ensure database is running
+            echo "🗄️ Starting database..."
             docker-compose up -d db
             
             # Wait for database to be ready
@@ -66,15 +72,16 @@ jobs:
             
             # Run database migrations
             echo "🔄 Running database migrations..."
-            docker-compose run --rm flyway migrate
-            
-            # Check migration status
-            if [ $? -eq 0 ]; then
+            if docker-compose run --rm flyway migrate; then
               echo "✅ Migrations completed successfully"
             else
               echo "❌ Migration failed!"
               exit 1
             fi
+            
+            # Show migration status
+            echo "📋 Migration status:"
+            docker-compose run --rm flyway info
             
             # Update backend and frontend services
             echo "🚀 Updating application services..."
@@ -82,17 +89,17 @@ jobs:
             
             # Display running containers
             echo "📊 Running containers:"
-            docker ps
-            
-            # Optional: Show migration info
-            echo "📋 Migration status:"
-            docker-compose run --rm flyway info
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
           EOF
           
           rm -f private_key.pem
 
       - name: Verify deployment
         run: |
+          echo "=========================================="
           echo "🎉 Deployment completed successfully!"
+          echo "=========================================="
           echo "Application URL: http://${{ secrets.EC2_HOST }}"
           echo "✅ Database migrations applied"
+          echo "✅ Services updated"
+          echo "=========================================="
