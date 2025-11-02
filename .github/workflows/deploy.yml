@@ -45,12 +45,12 @@ jobs:
             
             # Create/Update .env file with secrets from GitHub
             cat > .env << ENVFILE
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=$DB_PASSWORD
-POSTGRES_DB=fitness_tracker
-DB_HOST=db
-DB_PORT=5432
-ENVFILE
+            POSTGRES_USER=postgres
+            POSTGRES_PASSWORD=$DB_PASSWORD
+            POSTGRES_DB=fitness_tracker
+            DB_HOST=db
+            DB_PORT=5432
+            ENVFILE
             
             # Pull latest code
             git pull origin master
