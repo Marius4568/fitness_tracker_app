@@ -62,9 +62,6 @@ jobs:
             git reset --hard HEAD
             git pull origin master
             
-            echo "📦 Pulling Docker images from Docker Hub..."
-            docker-compose pull backend frontend
-            
             echo "🗄️ Ensuring database is running..."
             docker-compose up -d db
             
@@ -74,7 +71,17 @@ jobs:
             echo "🔄 Running migrations..."
             docker-compose run --rm flyway migrate
             
-            echo "🚀 Deploying application services..."
+            echo "🛑 Stopping application services..."
+            docker-compose stop backend frontend
+            
+            echo "🗑️ Removing old images..."
+            docker rmi mariusurbonas100039/fitness-tracker-backend:latest || true
+            docker rmi mariusurbonas100039/fitness-tracker-frontend:latest || true
+            
+            echo "📦 Pulling fresh images from Docker Hub..."
+            docker-compose pull backend frontend
+            
+            echo "🚀 Starting services with new images..."
             docker-compose up -d --force-recreate backend frontend
             
             echo "⏳ Waiting for services..."
@@ -82,6 +89,9 @@ jobs:
             
             echo "📊 Running containers:"
             docker ps --format "table {{.Names}}\t{{.Status}}"
+            
+            echo "🔍 Checking deployed version..."
+            docker exec fitness-tracker-frontend cat /usr/share/nginx/html/index.html | grep -o '<title>.*</title>' || echo "Could not verify frontend"
             
             echo "🔍 Health check:"
             curl -s http://localhost:5000/health | head -1 || echo "Backend starting..."
