@@ -35,50 +35,43 @@ resource "aws_security_group" "fitness_tracker_sg" {
   name        = "fitness-tracker-security-group"
   description = "Security group for fitness tracker application"
 
-  # Allow SSH access so we can connect to the server
-  # Port 22 is the standard SSH port
+  # Allow SSH access from anywhere (for now)
   ingress {
     description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = var.allowed_ssh_cidr
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  ingress {
-  description = "SSH from GitHub Actions"
-  from_port   = 22
-  to_port     = 22
-  protocol    = "tcp"
-  cidr_blocks = [
-    "140.82.112.0/20",    
-    "143.55.64.0/20",     
-    "185.199.108.0/22",   
-    "192.30.252.0/22"     
-  ]
-}
-
-  # Allow HTTP traffic so users can access the web application
-  # Port 80 is the standard HTTP port
+  # Allow HTTP traffic
   ingress {
     description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # Allow from anywhere - this is correct for public web apps
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow all outbound traffic so the server can download packages, Docker images, etc.
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Allow all outbound traffic
   egress {
     description = "All outbound traffic"
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"  # -1 means all protocols
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {
-    Name = "fitness-tracker-sg"
+    Name    = "fitness-tracker-sg"
     Project = "fitness-tracker"
   }
 }
