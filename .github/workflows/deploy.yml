@@ -41,7 +41,48 @@ jobs:
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          # Create .env file
+          # Create deployment script
+          cat > deploy.sh << 'SCRIPT'
+          #!/bin/bash
+          set -e
+          cd /home/ubuntu/fitness-tracker
+          
+          echo "🔄 Updating code..."
+          git reset --hard HEAD
+          git pull origin master
+          
+          echo "🗄️ Ensuring database is running..."
+          docker-compose up -d db
+          sleep 10
+          
+          echo "🔄 Running migrations..."
+          docker-compose run --rm flyway migrate
+          
+          echo "🛑 Stopping app containers..."
+          docker-compose stop backend frontend || true
+          docker-compose rm -f backend frontend || true
+          
+          echo "🗑️ Removing old app images..."
+          docker rmi mariusurbonas100039/fitness-tracker-backend:latest || true
+          docker rmi mariusurbonas100039/fitness-tracker-frontend:latest || true
+          
+          echo "📦 Pulling new images..."
+          docker-compose pull backend frontend
+          
+          echo "🚀 Starting services..."
+          docker-compose up -d backend frontend
+          sleep 10
+          
+          echo "✅ Deployment complete!"
+          docker ps
+          docker exec fitness-tracker-frontend cat /usr/share/nginx/html/index.html | head -5
+          SCRIPT
+          
+          # Copy and execute script
+          scp -o StrictHostKeyChecking=no -i private_key.pem deploy.sh ubuntu@$EC2_HOST:/tmp/
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST "bash /tmp/deploy.sh"
+          
+          # Update .env
           ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST "cat > /home/ubuntu/fitness-tracker/.env" << EOF
           POSTGRES_USER=postgres
           POSTGRES_PASSWORD=$DB_PASSWORD
@@ -51,55 +92,7 @@ jobs:
           JWT_SECRET=$JWT_SECRET
           EOF
           
-          # Deploy application
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST 'bash -s' << 'ENDSSH'
-            set -e
-            cd /home/ubuntu/fitness-tracker
-            
-            echo "🔄 Updating code..."
-            git reset --hard HEAD
-            git pull origin master
-            
-            echo "🗄️ Ensuring database is running..."
-            docker-compose up -d db
-            
-            echo "⏳ Waiting for database..."
-            sleep 10
-            
-            echo "🔄 Running migrations..."
-            docker-compose run --rm flyway migrate
-            
-            echo "🛑 Stopping application services..."
-            docker-compose stop backend frontend
-            docker-compose rm -f backend frontend
-            
-            echo "🗑️ Removing ALL old images..."
-            docker system prune -af --filter "label!=keep"
-            
-            echo "📦 Pulling fresh images from Docker Hub..."
-            docker-compose pull backend frontend
-            
-            echo "🚀 Starting services..."
-            docker-compose up -d backend frontend
-            
-            echo "⏳ Waiting for services..."
-            sleep 10
-            
-            echo "📊 Containers:"
-            docker ps --format "table {{.Names}}\t{{.Status}}"
-            
-            echo "🔍 Frontend content:"
-            docker exec fitness-tracker-frontend cat /usr/share/nginx/html/index.html | head -20
-            
-            echo "✅ Done!"
-          ENDSSH
-          
           rm -f private_key.pem
 
       - name: Verify deployment
-        run: |
-          echo "=========================================="
-          echo "🎉 Deployment completed!"
-          echo "=========================================="
-          echo "Application URL: https://${{ secrets.EC2_HOST }}"
-          echo "=========================================="
+        run: echo "Deployment complete!"
