@@ -22,13 +22,13 @@ jobs:
       - name: Build and push backend image
         working-directory: ./fitness-tracker-backend
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/fitness-tracker-backend:latest .
+          docker build --no-cache -t ${{ secrets.DOCKER_USERNAME }}/fitness-tracker-backend:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/fitness-tracker-backend:latest
 
       - name: Build and push frontend image
         working-directory: ./fitness-tracker-frontend
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/fitness-tracker-frontend:latest .
+          docker build --no-cache -t ${{ secrets.DOCKER_USERNAME }}/fitness-tracker-frontend:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/fitness-tracker-frontend:latest
 
       - name: Deploy to EC2

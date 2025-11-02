@@ -112,6 +112,9 @@ function AppContent() {
             Logout
           </button>
         </div>
+        <p style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+          Build: {new Date().toISOString()}
+        </p>
       </header>
 
       <div className="container">
