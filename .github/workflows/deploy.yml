@@ -40,11 +40,10 @@ jobs:
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST << EOF
             cd /home/ubuntu/fitness-tracker
             
-            # Create/Update .env file with secrets from GitHub
-            cat > .env << ENVFILE
+            cat > .env << 'ENVFILE'
             POSTGRES_USER=postgres
             POSTGRES_PASSWORD=$DB_PASSWORD
             POSTGRES_DB=fitness_tracker
@@ -52,16 +51,9 @@ jobs:
             DB_PORT=5432
             ENVFILE
             
-            # Pull latest code
             git pull origin master
-            
-            # Pull latest Docker images
             docker-compose pull
-            
-            # Restart containers
             docker-compose up -d --no-deps --build backend frontend
-            
-            # Show running containers
             docker ps
           EOF
           
