@@ -1,6 +1,13 @@
 # Configure the AWS Provider
 # This tells Terraform we want to create resources in AWS
 # The region is where your resources will be physically located
+# Variable for SSH access control
+variable "allowed_ssh_cidr" {
+  description = "CIDR blocks allowed to SSH (use your IP for better security)"
+  type        = list(string)
+  default     = ["84.15.183.182/32"]  # Replace YOUR_IP_HERE with the output from curl ifconfig.me
+}
+
 terraform {
   required_providers {
     aws = {
@@ -35,7 +42,7 @@ resource "aws_security_group" "fitness_tracker_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # Allow from anywhere - in production, restrict this to your IP
+    cidr_blocks = var.allowed_ssh_cidr
   }
 
   # Allow HTTP traffic so users can access the web application
@@ -46,15 +53,6 @@ resource "aws_security_group" "fitness_tracker_sg" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]  # Allow from anywhere - this is correct for public web apps
-  }
-
-  # Allow traffic on port 5000 for the backend API
-  ingress {
-    description = "Backend API"
-    from_port   = 5000
-    to_port     = 5000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # Allow all outbound traffic so the server can download packages, Docker images, etc.

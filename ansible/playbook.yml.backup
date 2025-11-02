@@ -1,0 +1,112 @@
+---
+
+- name: Configure Fitness Tracker Server
+  hosts: fitness_tracker
+  become: yes  # Run tasks with sudo privileges
+  
+  tasks:
+    # Update system packages to latest versions
+    - name: Update apt package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600  # Cache is valid for 1 hour
+      
+    # Install required system packages
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - git
+        state: present
+
+    # Add Docker's official GPG key for package verification
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    # Add Docker repository to apt sources
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    # Install Docker Engine
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+
+    # Ensure Docker service is running and starts on boot
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    # Add ubuntu user to docker group so they can run docker without sudo
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    # Reset SSH connection to pick up new group membership
+    - name: Reset connection to apply group changes
+      meta: reset_connection    
+
+    # Install Docker Compose as a standalone binary
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    # Create application directory where code will live
+    - name: Create application directory
+      file:
+        path: /home/ubuntu/fitness-tracker
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    # Clone the GitHub repository with application code
+    # IMPORTANT: Replace YOUR_GITHUB_USERNAME with your actual GitHub username
+    - name: Clone fitness tracker repository
+      git:
+        repo: 'https://github.com/Marius4568/fitness_tracker_app'
+        dest: /home/ubuntu/fitness-tracker
+        version: master
+        force: yes
+      become: no  # Run as ubuntu user, not root
+
+    # Build and start all Docker containers defined in docker-compose.yml
+    - name: Build and start Docker containers
+      command: docker-compose up -d --build
+      args:
+        chdir: /home/ubuntu/fitness-tracker
+      become: no  # Run as ubuntu user
+
+    # Wait a moment for containers to fully start
+    - name: Wait for application to start
+      pause:
+        seconds: 10
+
+    # Display container status for verification
+    - name: Show running containers
+      command: docker ps
+      register: docker_ps_output
+      become: no
+
+    # Print the container status to the terminal
+    - name: Display container status
+      debug:
+        var: docker_ps_output.stdout_lines

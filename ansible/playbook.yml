@@ -1,17 +1,22 @@
 ---
-
-- name: Configure Fitness Tracker Server
+# Ansible Playbook with HTTPS Support
+- name: Configure Fitness Tracker Server with HTTPS
   hosts: fitness_tracker
-  become: yes  # Run tasks with sudo privileges
+  become: yes
+  
+  vars:
+    domain_name: "marius-fitness-tracker.duckdns.org"
+    ssl_email: "mariolee303@gmail.com" 
+    github_repo: "https://github.com/Marius4568/fitness_tracker_app"
   
   tasks:
-    # Update system packages to latest versions
+    # Update system packages
     - name: Update apt package cache
       apt:
         update_cache: yes
-        cache_valid_time: 3600  # Cache is valid for 1 hour
+        cache_valid_time: 3600
       
-    # Install required system packages
+    # Install required packages including certbot
     - name: Install required packages
       apt:
         name:
@@ -20,21 +25,24 @@
           - curl
           - software-properties-common
           - git
+          - nginx
+          - certbot
+          - python3-certbot-nginx
         state: present
 
-    # Add Docker's official GPG key for package verification
+    # Add Docker GPG key
     - name: Add Docker GPG key
       apt_key:
         url: https://download.docker.com/linux/ubuntu/gpg
         state: present
 
-    # Add Docker repository to apt sources
+    # Add Docker repository
     - name: Add Docker repository
       apt_repository:
         repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
         state: present
 
-    # Install Docker Engine
+    # Install Docker
     - name: Install Docker
       apt:
         name:
@@ -44,14 +52,14 @@
         state: present
         update_cache: yes
 
-    # Ensure Docker service is running and starts on boot
+    # Start Docker service
     - name: Start and enable Docker service
       systemd:
         name: docker
         state: started
         enabled: yes
 
-    # Add ubuntu user to docker group so they can run docker without sudo
+    # Add ubuntu user to docker group
     - name: Add ubuntu user to docker group
       user:
         name: ubuntu
@@ -60,16 +68,16 @@
 
     # Reset SSH connection to pick up new group membership
     - name: Reset connection to apply group changes
-      meta: reset_connection    
+      meta: reset_connection
 
-    # Install Docker Compose as a standalone binary
+    # Install Docker Compose
     - name: Install Docker Compose
       get_url:
         url: https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64
         dest: /usr/local/bin/docker-compose
         mode: '0755'
 
-    # Create application directory where code will live
+    # Create application directory
     - name: Create application directory
       file:
         path: /home/ubuntu/fitness-tracker
@@ -78,35 +86,137 @@
         group: ubuntu
         mode: '0755'
 
-    # Clone the GitHub repository with application code
-    # IMPORTANT: Replace YOUR_GITHUB_USERNAME with your actual GitHub username
+    # Clone repository
     - name: Clone fitness tracker repository
       git:
-        repo: 'https://github.com/Marius4568/fitness_tracker_app'
+        repo: "{{ github_repo }}"
         dest: /home/ubuntu/fitness-tracker
         version: master
         force: yes
-      become: no  # Run as ubuntu user, not root
+      become: no
 
-    # Build and start all Docker containers defined in docker-compose.yml
+    # Modify docker-compose to use different ports (nginx will handle 80/443)
+    - name: Update docker-compose to use port 8080 for frontend
+      replace:
+        path: /home/ubuntu/fitness-tracker/docker-compose.yml
+        regexp: '- "80:80"'
+        replace: '- "8080:80"'
+
+    # Build and start Docker containers
     - name: Build and start Docker containers
       command: docker-compose up -d --build
       args:
         chdir: /home/ubuntu/fitness-tracker
-      become: no  # Run as ubuntu user
+      become: no
 
-    # Wait a moment for containers to fully start
+    # Wait for containers to start
     - name: Wait for application to start
       pause:
-        seconds: 10
+        seconds: 15
 
-    # Display container status for verification
+    # Configure nginx as reverse proxy (HTTP only initially)
+    - name: Configure nginx reverse proxy
+      copy:
+        dest: /etc/nginx/sites-available/fitness-tracker
+        content: |
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name {{ domain_name }};
+
+              # For Let's Encrypt verification
+              location /.well-known/acme-challenge/ {
+                  root /var/www/html;
+              }
+
+              location / {
+                  proxy_pass http://localhost:8080;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+              }
+
+              location /api {
+                  proxy_pass http://localhost:5000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+              }
+
+              location /health {
+                  proxy_pass http://localhost:5000/health;
+              }
+          }
+
+    # Enable nginx site
+    - name: Enable nginx site
+      file:
+        src: /etc/nginx/sites-available/fitness-tracker
+        dest: /etc/nginx/sites-enabled/fitness-tracker
+        state: link
+
+    # Remove default nginx site
+    - name: Remove default nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    # Test nginx configuration
+    - name: Test nginx configuration
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+
+    # Reload nginx
+    - name: Reload nginx
+      systemd:
+        name: nginx
+        state: reloaded
+
+    # Obtain SSL certificate from Let's Encrypt
+    - name: Obtain SSL certificate
+      command: >
+        certbot --nginx -d {{ domain_name }}
+        --non-interactive --agree-tos
+        --email {{ ssl_email }}
+        --redirect
+      register: certbot_result
+      changed_when: certbot_result.rc == 0
+
+    # Set up automatic certificate renewal
+    - name: Set up certbot renewal cron job
+      cron:
+        name: "Renew Let's Encrypt certificates"
+        minute: "0"
+        hour: "3"
+        job: "certbot renew --quiet --post-hook 'systemctl reload nginx'"
+
+    # Display container status
     - name: Show running containers
       command: docker ps
       register: docker_ps_output
       become: no
 
-    # Print the container status to the terminal
     - name: Display container status
       debug:
         var: docker_ps_output.stdout_lines
+
+    # Final status message
+    - name: Display completion message
+      debug:
+        msg: |
+          ======================================
+          🎉 Deployment Complete!
+          ======================================
+          HTTPS URL: https://{{ domain_name }}
+          HTTP URL:  http://{{ domain_name }} (redirects to HTTPS)
+          
+          Your site is now secured with SSL!
+          ======================================
