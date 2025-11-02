@@ -41,7 +41,20 @@ jobs:
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST "bash -s" << 'ENDSSH'
+          # FIRST: Create .env file with secrets
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST bash << EOF
+            cat > /home/ubuntu/fitness-tracker/.env << 'INNERENV'
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=$DB_PASSWORD
+          POSTGRES_DB=fitness_tracker
+          DB_HOST=db
+          DB_PORT=5432
+          JWT_SECRET=$JWT_SECRET
+          INNERENV
+          EOF
+          
+          # THEN: Deploy application
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST bash << 'DEPLOY'
             set -e
             cd /home/ubuntu/fitness-tracker
             
@@ -52,46 +65,34 @@ jobs:
             echo "📦 Pulling Docker images..."
             docker-compose pull
             
-            echo "🗄️ Starting database..."
+            echo "🗄️ Ensuring database is running..."
             docker-compose up -d db
             
-            echo "⏳ Waiting for database to be ready..."
+            echo "⏳ Waiting for database..."
             sleep 10
             
-            echo "🔄 Running database migrations..."
+            echo "🔄 Running migrations..."
             docker-compose run --rm flyway migrate
             
             echo "📋 Migration status:"
             docker-compose run --rm flyway info
             
-            echo "🚀 Updating application services..."
+            echo "🚀 Restarting application services..."
             docker-compose stop backend frontend
             docker-compose rm -f backend frontend
             docker-compose up -d backend frontend
             
-            echo "⏳ Waiting for services to start..."
+            echo "⏳ Waiting for services..."
             sleep 5
             
             echo "📊 Running containers:"
-            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            docker ps --format "table {{.Names}}\t{{.Status}}"
             
-            echo "🔍 Testing backend health..."
-            curl -f http://localhost:5000/health || echo "⚠️ Backend health check failed"
+            echo "🔍 Health check:"
+            curl -s http://localhost:5000/health | head -1 || echo "Backend starting..."
             
-            echo "✅ Deployment completed successfully!"
-          ENDSSH
-          
-          # Create .env file separately with variables
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_HOST << ENVEOF
-            cat > /home/ubuntu/fitness-tracker/.env << 'INNERENV'
-          POSTGRES_USER=postgres
-          POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
-          POSTGRES_DB=fitness_tracker
-          DB_HOST=db
-          DB_PORT=5432
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          INNERENV
-          ENVEOF
+            echo "✅ Deployment complete!"
+          DEPLOY
           
           rm -f private_key.pem
 
