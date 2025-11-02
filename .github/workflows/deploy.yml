@@ -62,8 +62,8 @@ jobs:
             git reset --hard HEAD
             git pull origin master
             
-            echo "📦 Pulling Docker images..."
-            docker-compose pull
+            echo "📦 Pulling Docker images from Docker Hub..."
+            docker-compose pull backend frontend
             
             echo "🗄️ Ensuring database is running..."
             docker-compose up -d db
@@ -74,11 +74,8 @@ jobs:
             echo "🔄 Running migrations..."
             docker-compose run --rm flyway migrate
             
-            echo "📋 Migration status:"
-            docker-compose run --rm flyway info
-            
             echo "🚀 Deploying application services..."
-            docker-compose up -d --force-recreate --pull always backend frontend
+            docker-compose up -d --force-recreate backend frontend
             
             echo "⏳ Waiting for services..."
             sleep 5
