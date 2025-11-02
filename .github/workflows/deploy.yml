@@ -77,10 +77,8 @@ jobs:
             echo "📋 Migration status:"
             docker-compose run --rm flyway info
             
-            echo "🚀 Restarting application services..."
-            docker-compose stop backend frontend
-            docker-compose rm -f backend frontend
-            docker-compose up -d backend frontend
+            echo "🚀 Deploying application services..."
+            docker-compose up -d --force-recreate --pull always backend frontend
             
             echo "⏳ Waiting for services..."
             sleep 5
