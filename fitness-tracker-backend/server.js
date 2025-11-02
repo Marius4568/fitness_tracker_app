@@ -62,20 +62,25 @@ pool.query('SELECT NOW()', (err, res) => {
 // Health check endpoint - Tests database connectivity
 app.get('/health', async (req, res) => {
   try {
-    // Test database connection
-    const result = await pool.query('SELECT NOW()');
+    const dbResult = await pool.query('SELECT NOW()');
+
+    // Check Flyway migration status
+    const migrationResult = await pool.query(
+      'SELECT version, description, installed_on FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 1'
+    );
+
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       database: 'connected',
-      dbTime: result.rows[0].now
+      dbTime: dbResult.rows[0].now,
+      latestMigration: migrationResult.rows[0] || null
     });
   } catch (err) {
     logger.error('Health check failed:', err);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      database: 'disconnected',
       error: err.message
     });
   }

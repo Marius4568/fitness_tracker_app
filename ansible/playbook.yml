@@ -1,5 +1,5 @@
 ---
-# Ansible Playbook with HTTPS Support
+# Ansible Playbook with HTTPS Support and Flyway Migrations
 - name: Configure Fitness Tracker Server with HTTPS
   hosts: fitness_tracker
   become: yes
@@ -102,9 +102,34 @@
         regexp: '- "80:80"'
         replace: '- "8080:80"'
 
-    # Build and start Docker containers
-    - name: Build and start Docker containers
-      command: docker-compose up -d --build
+    # Start database container first
+    - name: Start database container
+      command: docker-compose up -d db
+      args:
+        chdir: /home/ubuntu/fitness-tracker
+      become: no
+
+    # Wait for database to be ready
+    - name: Wait for database to be ready
+      pause:
+        seconds: 10
+
+    # Run database migrations with Flyway
+    - name: Run database migrations
+      command: docker-compose run --rm flyway migrate
+      args:
+        chdir: /home/ubuntu/fitness-tracker
+      become: no
+      register: flyway_result
+
+    # Display migration results
+    - name: Display migration results
+      debug:
+        var: flyway_result.stdout_lines
+
+    # Start backend and frontend containers
+    - name: Start backend and frontend containers
+      command: docker-compose up -d backend frontend
       args:
         chdir: /home/ubuntu/fitness-tracker
       become: no
@@ -219,4 +244,5 @@
           HTTP URL:  http://{{ domain_name }} (redirects to HTTPS)
           
           Your site is now secured with SSL!
+          Database migrations have been applied.
           ======================================

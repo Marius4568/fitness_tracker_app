@@ -3,12 +3,18 @@
   "version": "1.0.0",
   "description": "Fitness Tracker - Root development scripts",
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --prefix \"[{name}]\" --names \"DB,BACKEND,FRONTEND\" -c \"blue,green,yellow\" \"npm run dev:db\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "npm run dev:start",
+    "dev:start": "concurrently --kill-others-on-fail --prefix \"[{name}]\" --names \"DB,BACKEND,FRONTEND\" -c \"blue,green,yellow\" \"npm run dev:db:watch\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:db": "docker-compose -f docker-compose.dev.yml up db",
+    "dev:db:watch": "docker-compose -f docker-compose.dev.yml up db",
     "dev:backend": "npm run dev --prefix fitness-tracker-backend",
     "dev:frontend": "npm run dev --prefix fitness-tracker-frontend",
+    "migrate": "docker-compose -f docker-compose.dev.yml up -d db && sleep 5 && docker-compose -f docker-compose.dev.yml run --rm flyway migrate",
+    "migrate:info": "docker-compose -f docker-compose.dev.yml run --rm flyway info",
+    "migrate:validate": "docker-compose -f docker-compose.dev.yml run --rm flyway validate",
     "install:all": "npm install && npm install --prefix fitness-tracker-backend && npm install --prefix fitness-tracker-frontend",
-    "clean": "docker-compose -f docker-compose.dev.yml down -v"
+    "clean": "docker-compose -f docker-compose.dev.yml down -v",
+    "fresh": "npm run clean && npm run migrate && npm run dev:start"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
