@@ -128,3 +128,26 @@ resource "aws_instance" "fitness_tracker" {
   # This ensures the instance has a public IP address so we can access it from the internet
   associate_public_ip_address = true
 }
+resource "aws_eip" "fitness_tracker_eip" {
+  instance = aws_instance.fitness_tracker.id
+  domain   = "vpc"
+
+  tags = {
+    Name        = "fitness-tracker-eip"
+    Project     = "fitness-tracker"
+    Environment = "production"
+  }
+
+  depends_on = [aws_instance.fitness_tracker]
+}
+
+# Auto-generate Ansible inventory file
+resource "local_file" "ansible_inventory" {
+  content = templatefile("${path.module}/inventory.tpl", {
+    host_ip     = aws_eip.fitness_tracker_eip.public_ip
+    key_file    = "~/fitness-tracker-key.pem" 
+    environment = "production"
+  })
+  filename        = "${path.module}/../ansible/inventory-production.ini"
+  file_permission = "0644"
+}

@@ -4,8 +4,13 @@
 # The public IP address of the EC2 instance
 # This is what you'll use to access your application in a web browser
 output "instance_public_ip" {
-  description = "Public IP address of the EC2 instance"
-  value       = aws_instance.fitness_tracker.public_ip
+  description = "Elastic IP address (permanent)"
+  value       = aws_eip.fitness_tracker_eip.public_ip
+}
+
+output "elastic_ip" {
+  description = "Elastic IP address"
+  value       = aws_eip.fitness_tracker_eip.public_ip
 }
 
 # The instance ID is useful for reference in the AWS console
@@ -31,4 +36,9 @@ output "ssh_connection_command" {
 output "application_url" {
   description = "URL to access the fitness tracker application"
   value       = "http://${aws_instance.fitness_tracker.public_ip}"
+}
+
+output "ansible_inventory_location" {
+  description = "Location of auto-generated Ansible inventory"
+  value       = abspath(local_file.ansible_inventory.filename)
 }

@@ -58,6 +58,10 @@
         groups: docker
         append: yes
 
+    # Reset SSH connection to pick up new group membership
+    - name: Reset connection to apply group changes
+      meta: reset_connection    
+
     # Install Docker Compose as a standalone binary
     - name: Install Docker Compose
       get_url:

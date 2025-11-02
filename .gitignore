@@ -44,3 +44,5 @@ Thumbs.db
 # SSH Keys
 id_rsa
 id_rsa.pub
+
+ansible/inventory-production.ini
