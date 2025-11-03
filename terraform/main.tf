@@ -115,12 +115,14 @@ resource "aws_instance" "fitness_tracker" {
   # Associate the security group to control network access
   vpc_security_group_ids = [aws_security_group.fitness_tracker_sg.id]
 
+  # Root volume configuration - 20GB of storage
   root_block_device {
     volume_size = 16
     volume_type = "gp3"
-    encrypted   = true
+    encrypted   = true  # Security best practice - encrypt the disk
   }
 
+  # Tags help identify and organize resources in AWS
   tags = {
     Name    = "fitness-tracker-server"
     Project = "fitness-tracker"

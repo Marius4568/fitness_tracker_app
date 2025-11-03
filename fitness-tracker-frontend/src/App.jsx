@@ -105,13 +105,16 @@ function AppContent() {
       <header>
         <div className="header-content">
           <div>
-            <h1>💪 Exercise Tracker</h1>
+            <h1>💪 Exercise Trackerrr</h1>
             <p>Welcome, {user.username}!</p>
           </div>
           <button onClick={logout} className="btn-logout">
             Logout
           </button>
         </div>
+        <p style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+          Build: {new Date().toISOString()}
+        </p>
       </header>
 
       <div className="container">
