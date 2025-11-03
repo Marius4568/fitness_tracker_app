@@ -42,7 +42,7 @@ app.use((req, res, next) => {
 
 // PostgreSQL connection pool
 const pool = new Pool({
-  host: process.env.DB_HOST || 'db',
+  host: process.env.DB_HOST || 'local',
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'fitness_tracker',
   user: process.env.DB_USER || 'postgres',
@@ -209,9 +209,6 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
-// ============================================
-// EXERCISE ROUTES (Now Protected)
-// ============================================
 
 // Get all exercises for logged-in user
 app.get('/api/exercises', authenticateToken, async (req, res) => {
